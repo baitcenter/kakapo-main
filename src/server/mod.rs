@@ -1,17 +1,13 @@
 
 mod environment;
 mod state;
-mod extensions;
-mod session;
-mod actions;
-mod action_wrapper;
 
 use actix::prelude::*;
 
 use actix_web::{
-    App, Error as ActixError,
-    dev::JsonConfig, error as http_error, http, http::NormalizePath, middleware,
-    HttpRequest, HttpResponse, fs, fs::{NamedFile},
+    App, AsyncResponder, Error,
+    dev::JsonConfig, http, http::NormalizePath, HttpMessage,
+    middleware, HttpRequest, HttpResponse, fs, fs::{NamedFile},
     ResponseError, State,
 };
 
@@ -28,16 +24,15 @@ use std::result::Result;
 use std::result::Result::Ok;
 use std::path::Path as fsPath;
 
-use std::error::Error;
-
 use server::environment::Env;
 use server::state::AppState;
 use actix_web::Path;
 use actix_web::Responder;
-use server::action_wrapper::Connector;
 
+use futures::Future;
+use actix_web::client;
 //static routes
-fn index(_state: State<AppState>) -> Result<NamedFile, ActixError> {
+fn index(_state: State<AppState>) -> Result<NamedFile, Error> {
     let www_path = Env::www_path();
     let path = fsPath::new(&www_path).join("index.html");
     Ok(NamedFile::open(path)?)
@@ -48,15 +43,23 @@ fn test_route(req: &HttpRequest<AppState>) -> String {
     "test data".to_string()
 }
 
-pub fn serve() {
+fn call_internal_api(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpResponse, Error=Error>> {
+    client::ClientRequest::get("http://icanhazip.com/")
+        .finish().unwrap()
+        .send()
+        .map_err(Error::from)
+        .and_then(|resp| {
+            resp
+            .body()
+            .from_err()
+            .and_then(|body| {
+                Ok(HttpResponse::Ok().body(body))
+            })
+        })
+        .responder()
+}
 
-    let connection = Connector::new()
-        .host(Env::database_host())
-        .port(Env::database_port())
-        .user(Env::database_user())
-        .pass(Env::database_pass())
-        .db(Env::database_db())
-        .done();
+pub fn serve() {
 
     let server_addr = Env::server_addr();
     let is_secure = Env::is_secure();
@@ -64,8 +67,7 @@ pub fn serve() {
     let mut server_cfg = actix_web::server::new(move || {
 
         let www_path = Env::www_path();
-        let script_path = Env::script_path();
-        let state = AppState::new(connection.clone(), &script_path, "KakapoArbiter");
+        let state = AppState::new("KakapoArbiter");
 
         App::with_state(state)
             .middleware(Logger::new("Responded [%s] %b bytes %Dms"))
@@ -86,7 +88,10 @@ pub fn serve() {
                 .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
                 .allowed_header(http::header::CONTENT_TYPE)
                 .max_age(3600)
-                .resource("/test", |r| r.f(test_route))
+                .resource("/listen", |r| r.f(test_route))
+                .resource("/login", |r| r.f(test_route))
+                .resource("/logout", |r| r.f(test_route))
+                .resource("/manage/{param}", |r| r.f(call_internal_api))
                 .register())
             .resource("/", |r| {
                 r.method(http::Method::GET).with(index)
@@ -103,6 +108,7 @@ pub fn serve() {
         .workers(num_cpus::get())
         .keep_alive(30);
 
+    debug!("is_secure: {:?}", is_secure);
     let http_server = if is_secure {
         let ssl_cert_privkey_path = Env::ssl_cert_privkey_path();
         let ssl_cert_fullchain_path = Env::ssl_cert_fullchain_path();
