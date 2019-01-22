@@ -19,11 +19,9 @@ extern crate env_logger;
 #[macro_use]
 extern crate failure;
 extern crate futures;
-extern crate http;
 #[macro_use]
 extern crate json;
 extern crate jsonwebtoken;
-extern crate linked_hash_map;
 #[macro_use]
 extern crate log;
 extern crate num_cpus;
@@ -32,19 +30,11 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
-extern crate objekt;
 extern crate openssl;
-extern crate tokio;
 extern crate tokio_core;
 
 /// Mods
-mod view;
-mod model;
-mod scripting;
-mod data;
-mod database;
-mod connection;
+mod server;
 
 /// Extenal dependencies
 use log::LevelFilter;
@@ -52,8 +42,6 @@ use env_logger::{Builder, Target};
 use clap::{Arg, App};
 
 /// Internal dependencies
-use view::server;
-use scripting::ScriptFunctions;
 
 fn main() {
 
@@ -82,7 +70,7 @@ fn main() {
         .filter_module("actix_web", LevelFilter::Info)
         .init();
 
-    let sys = actix::System::new("Kakapo");
+    let sys = actix::System::new("KakapoArbiter");
 
     server::serve();
 
