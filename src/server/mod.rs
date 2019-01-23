@@ -1,13 +1,16 @@
 
 mod environment;
 mod state;
+mod api;
+mod auth_routes;
 
 use actix::prelude::*;
 
 use actix_web::{
-    App, AsyncResponder, Error,
-    dev::JsonConfig, http, http::NormalizePath, HttpMessage,
-    middleware, HttpRequest, HttpResponse, fs, fs::{NamedFile},
+    App, AsyncResponder, Error, dev::JsonConfig,
+    http, http::NormalizePath, http::Method,
+    HttpMessage, middleware, HttpRequest, HttpResponse,
+    fs, fs::NamedFile,
     ResponseError, State,
 };
 
@@ -31,6 +34,11 @@ use actix_web::Responder;
 
 use futures::Future;
 use actix_web::client;
+
+use server::api::Api;
+use server::api::GetEndpoint;
+use actix_web::Json;
+
 //static routes
 fn index(_state: State<AppState>) -> Result<NamedFile, Error> {
     let www_path = Env::www_path();
@@ -38,12 +46,19 @@ fn index(_state: State<AppState>) -> Result<NamedFile, Error> {
     Ok(NamedFile::open(path)?)
 }
 
+type AsyncResponse = Box<Future<Item=HttpResponse, Error=Error>>;
 
 fn test_route(req: &HttpRequest<AppState>) -> String {
     "test data".to_string()
 }
 
-fn call_internal_api(req: &HttpRequest<AppState>) -> Box<Future<Item=HttpResponse, Error=Error>> {
+pub struct ActionRequest {
+    action: String,
+    params: serde_json::Value,
+    data: serde_json::Value,
+}
+
+fn call_internal_api(req: &HttpRequest<AppState>) -> AsyncResponse {
     client::ClientRequest::get("http://icanhazip.com/")
         .finish().unwrap()
         .send()
@@ -78,8 +93,7 @@ pub fn serve() {
                     .path("/")
                     .domain(Env::domain())
                     .max_age(Duration::days(1))
-
-                    .secure(is_secure), // this can only be true if you have https
+                    .secure(is_secure),
             ))
             .configure(|app| Cors::for_app(app)
                 //.allowed_origin("http://localhost:3000") //TODO: this doesn't work in the current version of cors middleware https://github.com/actix/actix-web/issues/603
@@ -89,8 +103,8 @@ pub fn serve() {
                 .allowed_header(http::header::CONTENT_TYPE)
                 .max_age(3600)
                 .resource("/listen", |r| r.f(test_route))
-                .resource("/login", |r| r.f(test_route))
-                .resource("/logout", |r| r.f(test_route))
+                .resource("/login", |r| r.method(Method::POST).with(auth_routes::login))
+                .resource("/logout", |r| r.f(auth_routes::logout))
                 .resource("/manage/{param}", |r| r.f(call_internal_api))
                 .register())
             .resource("/", |r| {

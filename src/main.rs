@@ -29,6 +29,7 @@ extern crate tokio_core;
 
 /// Mods
 mod server;
+mod services;
 
 /// Extenal dependencies
 use log::LevelFilter;
