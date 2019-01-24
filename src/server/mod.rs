@@ -87,14 +87,6 @@ pub fn serve() {
         App::with_state(state)
             .middleware(Logger::new("Responded [%s] %b bytes %Dms"))
             .middleware(Logger::new("Requested [%r] FROM %a \"%{User-Agent}i\""))
-            .middleware(IdentityService::new(
-                CookieIdentityPolicy::new(Env::secret_key().as_bytes())
-                    .name("kakapo-arbiter")
-                    .path("/")
-                    .domain(Env::domain())
-                    .max_age(Duration::days(1))
-                    .secure(is_secure),
-            ))
             .configure(|app| Cors::for_app(app)
                 //.allowed_origin("http://localhost:3000") //TODO: this doesn't work in the current version of cors middleware https://github.com/actix/actix-web/issues/603
                 //.allowed_origin("http://localhost:8080")

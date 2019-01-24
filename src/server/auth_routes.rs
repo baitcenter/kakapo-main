@@ -37,7 +37,7 @@ use actix_web::Json;
 use std::str::from_utf8;
 use server::api::ApiResult;
 
-use actix_web::middleware::identity::RequestIdentity;
+//se actix_web::middleware::identity::RequestIdentity;
 
 type AsyncResponse = FutureResponse<HttpResponse>;
 
@@ -62,6 +62,35 @@ impl AuthData {
     }
 }
 
+fn generate_tokens_from_auth_result(raw_bytes: &[u8]) -> HttpResponse {
+    from_utf8(raw_bytes)
+        .or_else(|err|
+            Err(err.to_string())
+        )
+        .and_then(|raw_string| {
+            let v: ApiResult = serde_json::from_str(raw_string)
+                .or_else(|err| Err(err.to_string()))?;
+            match v {
+                ApiResult::Ok(res) => {
+                    //let token = create_token(&user)?;
+                    let tokens = json!({
+                                "token_type": "bearer",
+                                "access_token": "JWT TOKEN",
+                                "expires_in": "token_expiry",
+                                "refresh_token": "generated_token"
+                            });
+                    Ok(HttpResponse::Ok().json(tokens))
+                },
+                ApiResult::Err(err) => Ok(HttpResponse::Unauthorized().json(json!({ "error": err.get_error() }))),
+            }
+
+        })
+        .unwrap_or_else(|error_msg|
+            HttpResponse::BadGateway()
+                .json(json!({ "error": error_msg }))
+        )
+}
+
 pub fn login((req, auth_data): (HttpRequest<AppState>, Json<AuthData>)) -> AsyncResponse {
     let endpoint = Api::get_endpoint();
     let login_endpoint = format!("{}users/authenticate", endpoint);
@@ -74,32 +103,33 @@ pub fn login((req, auth_data): (HttpRequest<AppState>, Json<AuthData>)) -> Async
         .and_then(|resp| resp
             .body()
             .from_err()
-            .and_then(|body| from_utf8(&body)
-                .or_else(|err|
-                    Err(err.to_string())
-                )
-                .and_then(move |raw| {
-                    let v: ApiResult = serde_json::from_str(raw)
-                        .or_else(|err| Err(err.to_string()))?;
-                    match v {
-                        ApiResult::Ok(res) => {
-                            //let token = create_token(&user)?;
-                            req.remember("token".to_string());
-                            Ok(HttpResponse::Ok().body("hello world"))
-                        },
-                        ApiResult::Err(err) => Ok(HttpResponse::Unauthorized().json(json!({ "error": err.get_error() }))),
-                    }
-
-                })
-                .or_else(|error_msg|
-                    Ok(HttpResponse::BadGateway()
-                        .json(json!({ "error": error_msg })))
-                )
-            )
+            .and_then(|body| Ok(generate_tokens_from_auth_result(&body)))
         )
         .responder()
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct RefreshData {
+    refresh_token: String,
+}
+
+pub fn refresh((req, auth_data): (HttpRequest<AppState>, Json<RefreshData>)) -> String {
+    let state = req.state();
+    debug!("state: {:?}", &state);
+    "all_good".to_string()
+}
+
 pub fn logout(req: &HttpRequest<AppState>) -> String {
     "test data".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    #[test]
+    fn test_token_generation_and_parsing() {
+
+    }
 }
