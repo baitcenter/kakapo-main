@@ -96,7 +96,8 @@ pub fn serve() {
                 .max_age(3600)
                 .resource("/listen", |r| r.f(sockets::handler))
                 .resource("/login", |r| r.method(Method::POST).with(auth_routes::login))
-                .resource("/logout", |r| r.f(auth_routes::logout))
+                .resource("/refresh", |r| r.method(Method::POST).with(auth_routes::refresh))
+                .resource("/logout", |r| r.method(Method::POST).with(auth_routes::logout))
                 .resource("/manage/{param}", |r| r.f(call_internal_api))
                 .register())
             .resource("/", |r| {

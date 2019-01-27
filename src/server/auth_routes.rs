@@ -80,6 +80,7 @@ struct AuthenticationResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Claims {
     iss: String,
     sub: String,
@@ -209,19 +210,61 @@ pub fn login((req, auth_data): (HttpRequest<AppState>, Json<AuthData>)) -> Async
         .responder()
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RefreshData {
     refresh_token: String,
 }
 
-pub fn refresh((req, auth_data): (HttpRequest<AppState>, Json<RefreshData>)) -> String {
-    let state = req.state();
-    debug!("state: {:?}", &state);
-    "all_good".to_string()
+pub fn refresh((req, auth_data): (HttpRequest<AppState>, Json<RefreshData>)) -> AsyncResponse {
+    let endpoint = Api::get_endpoint();
+    let login_endpoint = format!("{}/users/authenticate", endpoint);
+
+    client::ClientRequest::post(login_endpoint)
+        .json(auth_data.into_inner())
+        .unwrap_or_default()
+        .send()
+        .map_err(Error::from)
+        .and_then(|resp| resp
+            .body()
+            .from_err()
+            .and_then(move |body| Ok(generate_tokens_from_auth_result(req.state(), &body)))
+        )
+        .responder()
 }
 
-pub fn logout(req: &HttpRequest<AppState>) -> String {
-    "test data".to_string()
+fn return_server_response(raw_bytes: &[u8]) -> HttpResponse {
+    ApiResult::parse_result(raw_bytes)
+        .and_then(|api_result| match api_result {
+            ApiResult::Ok(res) => {
+                Ok(HttpResponse::Ok().json(res.get_data()))
+            },
+            ApiResult::Err(err) => {
+                warn!("Did not receive a valid response from the server");
+                Ok(HttpResponse::BadRequest().json(json!({ "error": err.get_error() })))
+            },
+        })
+        .unwrap_or_else(|error_msg|
+            HttpResponse::BadGateway()
+                .json(json!({ "error": error_msg }))
+        )
+}
+
+pub fn logout((req, auth_data): (HttpRequest<AppState>, Json<RefreshData>)) -> AsyncResponse {
+    let endpoint = Api::get_endpoint();
+    let logout_endpoint = format!("{}/users/remove_authentication", endpoint);
+
+    client::ClientRequest::post(logout_endpoint)
+        .json(auth_data.into_inner())
+        .unwrap_or_default()
+        .send()
+        .map_err(Error::from)
+        .and_then(|resp| resp
+            .body()
+            .from_err()
+            .and_then(move |body| Ok(return_server_response(&body)))
+        )
+        .responder()
 }
 
 #[cfg(test)]
