@@ -10,6 +10,15 @@ pub struct ApiOkResponse {
     data: serde_json::Value,
 }
 
+impl ApiOkResponse {
+    pub fn get_action_name(&self) -> String {
+        self.action.to_owned()
+    }
+    pub fn get_data(self) -> serde_json::Value {
+        self.data
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiErrorResponse {
     error: String,
@@ -65,6 +74,6 @@ pub trait GetEndpoint {
 
 impl GetEndpoint for Api {
     fn get_endpoint() -> String {
-        "http://localhost:8001/".to_string()
+        "https://866bc5bf-bee9-4ce6-b138-58c356e1cd00.mock.pstmn.io".to_string()
     }
 }

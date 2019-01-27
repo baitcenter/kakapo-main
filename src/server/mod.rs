@@ -81,7 +81,8 @@ pub fn serve() {
     let mut server_cfg = actix_web::server::new(move || {
 
         let www_path = Env::www_path();
-        let state = AppState::new("KakapoArbiter");
+        let secret = Env::secret_key();
+        let state = AppState::new("KakapoArbiter", &secret);
 
         App::with_state(state)
             .middleware(Logger::new("Responded [%s] %b bytes %Dms"))
