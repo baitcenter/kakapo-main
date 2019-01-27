@@ -63,14 +63,10 @@ impl AuthData {
 }
 
 fn generate_tokens_from_auth_result(raw_bytes: &[u8]) -> HttpResponse {
-    from_utf8(raw_bytes)
-        .or_else(|err|
-            Err(err.to_string())
-        )
-        .and_then(|raw_string| {
-            let v: ApiResult = serde_json::from_str(raw_string)
-                .or_else(|err| Err(err.to_string()))?;
-            match v {
+
+    ApiResult::parse_result(raw_bytes)
+        .and_then(|api_result| {
+            match api_result {
                 ApiResult::Ok(res) => {
                     //let token = create_token(&user)?;
                     let tokens = json!({
@@ -83,7 +79,6 @@ fn generate_tokens_from_auth_result(raw_bytes: &[u8]) -> HttpResponse {
                 },
                 ApiResult::Err(err) => Ok(HttpResponse::Unauthorized().json(json!({ "error": err.get_error() }))),
             }
-
         })
         .unwrap_or_else(|error_msg|
             HttpResponse::BadGateway()

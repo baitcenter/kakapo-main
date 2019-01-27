@@ -3,6 +3,9 @@ mod environment;
 mod state;
 mod api;
 mod auth_routes;
+mod sockets;
+mod socket_server;
+mod error;
 
 use actix::prelude::*;
 
@@ -11,7 +14,7 @@ use actix_web::{
     http, http::NormalizePath, http::Method,
     HttpMessage, middleware, HttpRequest, HttpResponse,
     fs, fs::NamedFile,
-    ResponseError, State,
+    ResponseError, State, ws,
 };
 
 use actix_web::middleware::cors::Cors;
@@ -47,10 +50,6 @@ fn index(_state: State<AppState>) -> Result<NamedFile, Error> {
 }
 
 type AsyncResponse = Box<Future<Item=HttpResponse, Error=Error>>;
-
-fn test_route(req: &HttpRequest<AppState>) -> String {
-    "test data".to_string()
-}
 
 pub struct ActionRequest {
     action: String,
@@ -94,7 +93,7 @@ pub fn serve() {
                 .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
                 .allowed_header(http::header::CONTENT_TYPE)
                 .max_age(3600)
-                .resource("/listen", |r| r.f(test_route))
+                .resource("/listen", |r| r.f(sockets::handler))
                 .resource("/login", |r| r.method(Method::POST).with(auth_routes::login))
                 .resource("/logout", |r| r.f(auth_routes::logout))
                 .resource("/manage/{param}", |r| r.f(call_internal_api))
