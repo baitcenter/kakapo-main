@@ -79,7 +79,7 @@ impl Handler<GetChannelSubscribers> for WsServer {
             Some(channel_state) => {
                 let users: Vec<_> = channel_state
                     .values()
-                    .map(|x| x.user.to_owned())
+                    .map(|x| x.user.get_username())
                     .collect();
 
                 match channel_state.get(&msg.id) {

@@ -3,17 +3,18 @@ use serde_json;
 use std::str::from_utf8;
 use server::error;
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserData {
     #[serde(rename = "sub")]
     username: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    email: Option<String>, //TODO: this should be there, not optional
-    #[serde(skip_serializing_if = "Option::is_none")]
-    profile_picture: Option<String>,
 }
 
+impl UserData {
+    pub fn get_username(&self) -> String {
+        self.username.to_owned()
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
