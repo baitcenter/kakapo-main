@@ -3,7 +3,7 @@ use serde_json;
 use std::str::from_utf8;
 use server::error;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserData {
     username: String,

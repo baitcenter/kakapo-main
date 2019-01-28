@@ -49,6 +49,8 @@ use server::api::Channel;
 use uuid::Uuid;
 use server::api::UserData;
 
+use jsonwebtoken as jwt;
+
 
 pub fn handler(req: &HttpRequest<AppState>) -> Result<HttpResponse, Error> {
     ws::start(req, WsSessionManager::new())
@@ -122,7 +124,10 @@ enum WsInputData {
         channel: String,
     },
     Call {
-        user: UserData,
+        // WARNING: while calling functions require authentication,
+        // everything that has already been subscribed remains
+        // This is a security issue and needs to be solved
+        auth: String,
         function: String,
         params: serde_json::Value,
         data: serde_json::Value,
@@ -198,16 +203,24 @@ impl WsSessionManager {
     fn call_procedure(
         &mut self,
         ctx: &mut ws::WebsocketContext<Self, AppState>,
-        user: UserData,
+        auth: String,
         function: String,
         params: serde_json::Value,
         data: serde_json::Value,
-    ) {
-        let _ = client::ClientRequest::post("https://example.com") //TODO: params
+    ) -> Result<(), String> {
+        let secret = ctx.state().get_secret_key();
+        let user = jwt::decode::<UserData>(&auth, secret.as_ref(), &jwt::Validation::default())
+            .and_then(|token_data| Ok(token_data.claims))
+            .or_else(|err| {
+                warn!("Could not parse token: {:?}", &err);
+                Err("Could not parse token data".to_string())
+            })?;
+
+        let _ = client::ClientRequest::post("https://example.com") //TODO: params, auth, function
             .json(data)
             .unwrap_or_default()
             .send()
-            .map_err(Error::from) //TODO: wait here?
+            .map_err(Error::from) //TODO: wait here? <- I'm pretty sure that yeah....
             .and_then(|resp| resp
                 .body()
                 .from_err()
@@ -218,7 +231,14 @@ impl WsSessionManager {
                             Ok(()) //the error is handled in the process function
                         })
                 })
-            );
+            )
+            .or_else(|err| {
+                error!("Could not send message in websocket: {:?}", &err);
+                Err("Could not send message".to_string())
+            });
+
+        Ok(())
+
     }
 
     fn handle_message(&mut self, ctx: &mut ws::WebsocketContext<Self, AppState>, input: WsInputData) {
@@ -229,8 +249,8 @@ impl WsSessionManager {
             WsInputData::Unsubscribe { channel } => {
                 self.unsubscribe_from_channel(ctx, channel);
             },
-            WsInputData::Call { user, function, params, data } => {
-                self.call_procedure(ctx, user, function, params, data);
+            WsInputData::Call { auth, function, params, data } => {
+                self.call_procedure(ctx, auth, function, params, data);
             },
         }
     }
