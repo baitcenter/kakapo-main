@@ -51,6 +51,8 @@ use server::api::UserData;
 
 use jsonwebtoken as jwt;
 
+use server::error::Error::TooManyConnections;
+
 
 pub fn handler(req: &HttpRequest<AppState>) -> Result<HttpResponse, Error> {
     ws::start(req, WsSessionManager::new())
@@ -168,6 +170,14 @@ impl WsSessionManager {
             channel_name,
         );
 
+        WsServer::from_registry()
+            .send(leave.to_owned())
+            .into_actor(self)
+            .then(|res, act, _ctx| {
+                info!("Got server from registry");
+                fut::ok(())
+            }).spawn(ctx);
+
         self.issue_sync(leave, ctx);
     }
 
@@ -187,12 +197,28 @@ impl WsSessionManager {
                 debug!("received ok message \"{:?}\"", &res);
                 let recipient = ctx.address().recipient();
                 let send_msg = SendMsg::new(self.id, user, res, recipient);
+
+                WsServer::from_registry()
+                    .send(send_msg.to_owned())
+                    .into_actor(self)
+                    .then(|res, act, _ctx| {
+                        info!("Got server from registry");
+                        fut::ok(())
+                    }).spawn(ctx);
                 self.issue_sync(send_msg, ctx);
             },
             ApiResult::Err(err) => {
                 debug!("received err message \"{:?}\"", &err);
                 let recipient = ctx.address().recipient();
                 let send_msg = SendErrorMsg::new(self.id, err, recipient);
+
+                WsServer::from_registry()
+                    .send(send_msg.to_owned())
+                    .into_actor(self)
+                    .then(|res, act, _ctx| {
+                        info!("Got server from registry");
+                        fut::ok(())
+                    }).spawn(ctx);
                 self.issue_sync(send_msg, ctx);
             },
         }
@@ -216,27 +242,31 @@ impl WsSessionManager {
                 Err("Could not parse token data".to_string())
             })?;
 
-        let _ = client::ClientRequest::post("https://example.com") //TODO: params, auth, function
+        let endpoint = Api::get_endpoint();
+        let function_endpoint = format!("{}/{}", endpoint, function);
+        debug!("calling endpoint: {:?}", &function_endpoint);
+
+        let _ = client::ClientRequest::post(function_endpoint) //TODO: params, auth
             .json(data)
             .unwrap_or_default()
             .send()
-            .map_err(Error::from) //TODO: wait here? <- I'm pretty sure that yeah....
-            .and_then(|resp| resp
-                .body()
-                .from_err()
-                .and_then(|body| {
-                    self.process_procedure_result(ctx, user, &body)
-                        .or_else(|err| {
-                            debug!("encountered error: {:?}", &err);
-                            Ok(()) //the error is handled in the process function
-                        })
-                })
-            )
-            .or_else(|err| {
-                error!("Could not send message in websocket: {:?}", &err);
-                Err("Could not send message".to_string())
-            });
+            .wait()
+            .or_else(|err| Err(TooManyConnections))
+            .and_then(|resp| {
+                debug!("msg response: {:?}", &resp);
 
+                resp.body()
+                    .and_then(|body| {
+                        self.process_procedure_result(ctx, user, &body)
+                            .or_else(|err| {
+                                debug!("encountered error: {:?}", &err);
+                                Ok(()) //the error is handled in the process function
+                            })
+                    })
+                    .wait();
+
+                Ok(())
+            });
         Ok(())
 
     }

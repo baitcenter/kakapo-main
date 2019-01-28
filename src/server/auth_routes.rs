@@ -241,12 +241,12 @@ fn return_server_response(raw_bytes: &[u8]) -> HttpResponse {
             },
             ApiResult::Err(err) => {
                 warn!("Did not receive a valid response from the server");
-                Ok(HttpResponse::BadRequest().json(json!({ "error": err.get_error() })))
+                Ok(HttpResponse::BadRequest().json(json!({ "error": err.get_error().to_string() })))
             },
         })
         .unwrap_or_else(|error_msg|
             HttpResponse::BadGateway()
-                .json(json!({ "error": error_msg }))
+                .json(json!({ "error": error_msg.to_string() }))
         )
 }
 

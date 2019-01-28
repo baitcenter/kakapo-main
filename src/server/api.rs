@@ -6,10 +6,12 @@ use server::error;
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserData {
+    #[serde(rename = "sub")]
     username: String,
-    email: String,
-    #[serde(skip_serializing_if = "String::is_empty")]
-    profile_picture: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    email: Option<String>, //TODO: this should be there, not optional
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile_picture: Option<String>,
 }
 
 
@@ -17,10 +19,10 @@ pub struct UserData {
 #[serde(rename_all = "camelCase")]
 pub struct ApiOkResponse {
     action: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    publish_to: Vec<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    subscribe_to: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    publish_to: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    subscribe_to: Option<Vec<String>>,
     data: serde_json::Value,
 }
 
@@ -33,11 +35,11 @@ impl ApiOkResponse {
     }
 
     pub fn get_channels_to_subscribe_to(&self) -> Vec<String> {
-        self.subscribe_to.to_owned()
+        self.subscribe_to.to_owned().unwrap_or_default()
     }
 
     pub fn get_channels_to_publish_to(&self) -> Vec<String> {
-        self.publish_to.to_owned()
+        self.publish_to.to_owned().unwrap_or_default()
     }
 
     pub fn get_action(&self) -> String {
@@ -49,8 +51,8 @@ impl ApiOkResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiErrorResponse {
     error: String,
-    #[serde(skip_serializing_if = "String::is_empty")]
-    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
 }
 
 impl ApiErrorResponse {
@@ -86,6 +88,7 @@ impl ApiResult {
                 Err(error::Error::ServerGarbageResponse(err.to_string()))
             )
             .and_then(|raw_string| {
+                debug!("parsing raw string: {:?}", &raw_string);
                 let api_result: ApiResult = serde_json::from_str(raw_string)
                     .or_else(|err| Err(error::Error::ServerSerialization(err.to_string())))?;
 
