@@ -3,10 +3,24 @@ use serde_json;
 use std::str::from_utf8;
 use server::error;
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserData {
+    username: String,
+    email: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    profile_picture: String,
+}
+
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ApiOkResponse {
     action: String,
-    channels: Vec<serde_json::Value>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    publish_to: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    subscribe_to: Vec<String>,
     data: serde_json::Value,
 }
 
@@ -14,15 +28,29 @@ impl ApiOkResponse {
     pub fn get_action_name(&self) -> String {
         self.action.to_owned()
     }
-    pub fn get_data(self) -> serde_json::Value {
-        self.data
+    pub fn get_data(&self) -> serde_json::Value {
+        self.data.to_owned()
     }
+
+    pub fn get_channels_to_subscribe_to(&self) -> Vec<String> {
+        self.subscribe_to.to_owned()
+    }
+
+    pub fn get_channels_to_publish_to(&self) -> Vec<String> {
+        self.publish_to.to_owned()
+    }
+
+    pub fn get_action(&self) -> String {
+        self.action.to_owned()
+    }
+
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiErrorResponse {
     error: String,
-    message: Option<String>,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    message: String,
 }
 
 impl ApiErrorResponse {
@@ -31,7 +59,7 @@ impl ApiErrorResponse {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Channel {
     channel_name: String,
 }

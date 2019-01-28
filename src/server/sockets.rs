@@ -37,7 +37,7 @@ use actix_web::Json;
 use actix_broker::BrokerIssue;
 
 use server::socket_server::WsServer;
-use server::socket_server::JoinChannel;
+use server::socket_server::GetChannelSubscribers;
 use server::socket_server::LeaveChannel;
 use server::socket_server::SendMsg;
 use server::socket_server::SendErrorMsg;
@@ -47,6 +47,7 @@ use server::api::ApiResult;
 use server::api::Channel;
 
 use uuid::Uuid;
+use server::api::UserData;
 
 
 pub fn handler(req: &HttpRequest<AppState>) -> Result<HttpResponse, Error> {
@@ -83,6 +84,9 @@ pub struct Notification {
 }
 
 impl Notification {
+    pub fn new(data: serde_json::Value) -> Self {
+        Self { data }
+    }
     pub fn get_data(self) -> serde_json::Value {
         self.data
     }
@@ -93,13 +97,13 @@ impl Handler<Notification> for WsSessionManager {
 
     fn handle(&mut self, notification: Notification, ctx: &mut Self::Context) {
         let data = notification.get_data();
-        serde_json::to_string(&data)
+        let _ = serde_json::to_string(&data)
             .and_then(|res| {
                 ctx.text(res);
                 Ok(())
             })
             .or_else(|err| {
-                error!("Could not parse message for notifactions: {:?}", &err);
+                error!("Could not parse message for notifications: {:?}", &err);
                 Err(err)
             });
 
@@ -111,13 +115,14 @@ impl Handler<Notification> for WsSessionManager {
 #[serde(tag = "action")]
 #[serde(rename_all = "camelCase")]
 enum WsInputData {
-    Subscribe {
+    GetSubscribers {
         channel: String,
     },
     Unsubscribe {
         channel: String,
     },
     Call {
+        user: UserData,
         function: String,
         params: serde_json::Value,
         data: serde_json::Value,
@@ -125,26 +130,26 @@ enum WsInputData {
 }
 
 impl WsSessionManager {
-    fn subscribe_to_channel(
+    fn get_subscribers(
         &mut self,
         ctx: &mut ws::WebsocketContext<Self, AppState>,
         channel_name: String,
     ) {
-        let join = JoinChannel::new(
+        let get_subscribers = GetChannelSubscribers::new(
             self.id,
             channel_name,
             ctx.address().recipient(),
         );
 
         WsServer::from_registry()
-            .send(join.to_owned())
+            .send(get_subscribers.to_owned())
             .into_actor(self)
             .then(|res, act, _ctx| {
                 info!("Got server from registry");
                 fut::ok(())
             }).spawn(ctx);
 
-        self.issue_sync(join, ctx);
+        self.issue_sync(get_subscribers, ctx);
 
     }
 
@@ -164,38 +169,41 @@ impl WsSessionManager {
     fn process_procedure_result(
         &mut self,
         ctx: &mut ws::WebsocketContext<Self, AppState>,
+        user: UserData,
         raw_bytes: &[u8],
     ) -> Result<(), error::Error> {
-        ApiResult::parse_result(raw_bytes)
-            .and_then(|api_result| match api_result {
-                ApiResult::Ok(res) => {
-                    debug!("received ok message \"{:?}\"", &res);
-                    let recipient = ctx.address().recipient();
-                    let send_msg = SendMsg::new(self.id, res, recipient);
-                    self.issue_sync(send_msg, ctx);
-                    Ok(())
-                },
-                ApiResult::Err(err) => {
-                    debug!("received err message \"{:?}\"", &err);
-                    let recipient = ctx.address().recipient();
-                    let send_msg = SendErrorMsg::new(self.id, err, recipient);
-                    self.issue_sync(send_msg, ctx);
-                    Ok(())
-                },
-            })
+        let api_result = ApiResult::parse_result(raw_bytes)
             .or_else(|err| {
                 Err(err)
-            })
+            })?;
+
+        match api_result {
+            ApiResult::Ok(res) => {
+                debug!("received ok message \"{:?}\"", &res);
+                let recipient = ctx.address().recipient();
+                let send_msg = SendMsg::new(self.id, user, res, recipient);
+                self.issue_sync(send_msg, ctx);
+            },
+            ApiResult::Err(err) => {
+                debug!("received err message \"{:?}\"", &err);
+                let recipient = ctx.address().recipient();
+                let send_msg = SendErrorMsg::new(self.id, err, recipient);
+                self.issue_sync(send_msg, ctx);
+            },
+        }
+
+        Ok(())
     }
 
     fn call_procedure(
         &mut self,
         ctx: &mut ws::WebsocketContext<Self, AppState>,
+        user: UserData,
         function: String,
         params: serde_json::Value,
         data: serde_json::Value,
     ) {
-        client::ClientRequest::post("https://example.com")
+        let _ = client::ClientRequest::post("https://example.com") //TODO: params
             .json(data)
             .unwrap_or_default()
             .send()
@@ -204,7 +212,7 @@ impl WsSessionManager {
                 .body()
                 .from_err()
                 .and_then(|body| {
-                    self.process_procedure_result(ctx, &body)
+                    self.process_procedure_result(ctx, user, &body)
                         .or_else(|err| {
                             debug!("encountered error: {:?}", &err);
                             Ok(()) //the error is handled in the process function
@@ -215,14 +223,14 @@ impl WsSessionManager {
 
     fn handle_message(&mut self, ctx: &mut ws::WebsocketContext<Self, AppState>, input: WsInputData) {
         match input {
-            WsInputData::Subscribe { channel } => {
-                self.subscribe_to_channel(ctx, channel);
+            WsInputData::GetSubscribers { channel } => {
+                self.get_subscribers(ctx, channel);
             },
             WsInputData::Unsubscribe { channel } => {
                 self.unsubscribe_from_channel(ctx, channel);
             },
-            WsInputData::Call { function, params, data } => {
-                self.call_procedure(ctx, function, params, data);
+            WsInputData::Call { user, function, params, data } => {
+                self.call_procedure(ctx, user, function, params, data);
             },
         }
     }
@@ -234,7 +242,7 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for WsSessionManager {
         debug!("received msg \"{:?}\"", msg);
         match msg {
             ws::Message::Text(text) => {
-                serde_json::from_str(&text)
+                let _ = serde_json::from_str(&text)
                     .or_else(|err| {
                         debug!("could not understand incoming message, must be `WsInputData`");
                         Err(())
