@@ -1,11 +1,6 @@
 
 mod environment;
-mod state;
-mod api;
 mod auth_routes;
-mod sockets;
-mod socket_server;
-mod error;
 
 use actix::prelude::*;
 
@@ -31,7 +26,7 @@ use std::result::Result::Ok;
 use std::path::Path as fsPath;
 
 use server::environment::Env;
-use server::state::AppState;
+use state::AppState;
 use actix_web::Path;
 use actix_web::Responder;
 
@@ -41,6 +36,10 @@ use actix_web::client;
 use server::api::Api;
 use server::api::GetEndpoint;
 use actix_web::Json;
+
+use sockets;
+use state::api;
+use state::error;
 
 //static routes
 fn index(_state: State<AppState>) -> Result<NamedFile, Error> {

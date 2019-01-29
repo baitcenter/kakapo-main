@@ -2,6 +2,9 @@
 
 use actix::prelude::*;
 
+pub mod api;
+pub mod error;
+
 #[derive(Debug, Clone)]
 pub struct AppState {
     app_name: String,

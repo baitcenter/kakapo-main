@@ -32,6 +32,8 @@ extern crate uuid;
 /// Mods
 mod server;
 mod services;
+mod sockets;
+mod state;
 
 /// Extenal dependencies
 use log::LevelFilter;

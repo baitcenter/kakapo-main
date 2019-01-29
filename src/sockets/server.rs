@@ -5,15 +5,15 @@ use rand;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::mem;
-use server::api::ApiOkResponse;
-use server::api::ApiErrorResponse;
-use server::api::Channel;
+use state::api::ApiOkResponse;
+use state::api::ApiErrorResponse;
+use state::api::Channel;
 use std::iter::FromIterator;
 
-use server::sockets::Notification;
+use sockets::Notification;
 
 use uuid::Uuid;
-use server::api::UserData;
+use state::api::UserData;
 
 type Client = Recipient<Notification>;
 

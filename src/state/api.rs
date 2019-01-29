@@ -1,7 +1,7 @@
 
 use serde_json;
 use std::str::from_utf8;
-use server::error;
+use state::error;
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]

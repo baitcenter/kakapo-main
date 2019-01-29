@@ -22,55 +22,51 @@ use std::result::Result;
 use std::result::Result::Ok;
 use std::path::Path as fsPath;
 
-use server::environment::Env;
-use server::state::AppState;
+use state::AppState;
 use actix_web::Path;
 use actix_web::Responder;
 
 use futures::Future;
 use actix_web::client;
 
-use server::api::Api;
-use server::api::GetEndpoint;
+use state::api::Api;
+use state::api::GetEndpoint;
 use actix_web::Json;
 
 use actix_broker::BrokerIssue;
 
-use server::socket_server::WsServer;
-use server::socket_server::GetChannelSubscribers;
-use server::socket_server::LeaveChannel;
-use server::socket_server::SendMsg;
-use server::socket_server::SendErrorMsg;
+use sockets::server::WsServer;
+use sockets::server::GetChannelSubscribers;
+use sockets::server::LeaveChannel;
+use sockets::server::SendMsg;
+use sockets::server::SendErrorMsg;
 
-use server::error;
-use server::api::ApiResult;
-use server::api::Channel;
+use state::error;
+use state::api::ApiResult;
+use state::api::Channel;
 
 use uuid::Uuid;
-use server::api::UserData;
+use state::api::UserData;
 
 use jsonwebtoken as jwt;
 
-use server::error::Error::TooManyConnections;
+use state::error::Error::TooManyConnections;
+use sockets::Notification;
 
-
-pub fn handler(req: &HttpRequest<AppState>) -> Result<HttpResponse, Error> {
-    ws::start(req, WsSessionManager::new())
-}
 
 #[derive(Clone, Debug)]
-struct WsSessionManager {
+pub struct WsClientSession {
     id: Uuid,
 }
 
-impl WsSessionManager {
-    fn new() -> Self {
+impl WsClientSession {
+    pub fn new() -> Self {
         let id = Uuid::new_v4();
         Self { id }
     }
 }
 
-impl Actor for WsSessionManager {
+impl Actor for WsClientSession {
     type Context = ws::WebsocketContext<Self, AppState>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
@@ -82,21 +78,8 @@ impl Actor for WsSessionManager {
     }
 }
 
-#[derive(Debug, Clone, Message)]
-pub struct Notification {
-    data: serde_json::Value,
-}
 
-impl Notification {
-    pub fn new(data: serde_json::Value) -> Self {
-        Self { data }
-    }
-    pub fn get_data(self) -> serde_json::Value {
-        self.data
-    }
-}
-
-impl Handler<Notification> for WsSessionManager {
+impl Handler<Notification> for WsClientSession {
     type Result = ();
 
     fn handle(&mut self, notification: Notification, ctx: &mut Self::Context) {
@@ -136,7 +119,7 @@ enum WsInputData {
     },
 }
 
-impl WsSessionManager {
+impl WsClientSession {
     fn get_subscribers(
         &mut self,
         ctx: &mut ws::WebsocketContext<Self, AppState>,
@@ -287,7 +270,7 @@ impl WsSessionManager {
 }
 
 
-impl StreamHandler<ws::Message, ws::ProtocolError> for WsSessionManager {
+impl StreamHandler<ws::Message, ws::ProtocolError> for WsClientSession {
     fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
         debug!("received msg \"{:?}\"", msg);
         match msg {

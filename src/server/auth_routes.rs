@@ -22,8 +22,7 @@ use std::result::Result;
 use std::result::Result::Ok;
 use std::path::Path as fsPath;
 
-use server::environment::Env;
-use server::state::AppState;
+use state::AppState;
 use actix_web::Path;
 use actix_web::Responder;
 
