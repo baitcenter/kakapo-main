@@ -25,7 +25,6 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 extern crate openssl;
-extern crate rand;
 extern crate tokio_core;
 extern crate uuid;
 

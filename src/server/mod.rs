@@ -1,6 +1,7 @@
 
 mod environment;
 mod auth_routes;
+mod error;
 
 use actix::prelude::*;
 
@@ -39,7 +40,6 @@ use actix_web::Json;
 
 use sockets;
 use state::api;
-use state::error;
 
 //static routes
 fn index(_state: State<AppState>) -> Result<NamedFile, Error> {

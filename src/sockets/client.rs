@@ -52,7 +52,7 @@ use jsonwebtoken as jwt;
 
 use state::error::Error::TooManyConnections;
 use sockets::Notification;
-
+use state::JwtConfig;
 
 #[derive(Clone, Debug)]
 pub struct WsClientSession {

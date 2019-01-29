@@ -21,16 +21,26 @@ impl AppState {
             secret_key: secret.to_string(),
         }
     }
+}
 
-    pub fn get_jwt_issuer(&self) -> String {
+pub trait JwtConfig {
+    fn get_jwt_issuer(&self) -> String;
+
+    fn get_jwt_duration(&self) -> i64;
+
+    fn get_secret_key(&self) -> String;
+}
+
+impl JwtConfig for AppState {
+    fn get_jwt_issuer(&self) -> String {
         "http://localhost:8000".to_string() //TODO:...
     }
 
-    pub fn get_jwt_duration(&self) -> i64 {
+    fn get_jwt_duration(&self) -> i64 {
         JWT_TIMEOUT
     }
 
-    pub fn get_secret_key(&self) -> String {
+    fn get_secret_key(&self) -> String {
         self.secret_key.to_owned()
     }
 }

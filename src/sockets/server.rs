@@ -1,6 +1,5 @@
 use actix::prelude::*;
 use actix_broker::BrokerSubscribe;
-use rand;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
