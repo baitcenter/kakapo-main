@@ -59,45 +59,6 @@ pub struct WsClientSession {
     id: Uuid,
 }
 
-impl WsClientSession {
-    pub fn new() -> Self {
-        let id = Uuid::new_v4();
-        Self { id }
-    }
-}
-
-impl Actor for WsClientSession {
-    type Context = ws::WebsocketContext<Self, AppState>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        info!("WsSession[{:?}] opened ", &self.id);
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        info!("WsSession[{:?}] closed ", &self.id);
-    }
-}
-
-
-impl Handler<Notification> for WsClientSession {
-    type Result = ();
-
-    fn handle(&mut self, notification: Notification, ctx: &mut Self::Context) {
-        let data = notification.get_data();
-        let _ = serde_json::to_string(&data)
-            .and_then(|res| {
-                ctx.text(res);
-                Ok(())
-            })
-            .or_else(|err| {
-                error!("Could not parse message for notifications: {:?}", &err);
-                Err(err)
-            });
-
-    }
-}
-
-
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "action")]
 #[serde(rename_all = "camelCase")]
@@ -120,6 +81,12 @@ enum WsInputData {
 }
 
 impl WsClientSession {
+
+    pub fn new() -> Self {
+        let id = Uuid::new_v4();
+        Self { id }
+    }
+
     fn get_subscribers(
         &mut self,
         ctx: &mut ws::WebsocketContext<Self, AppState>,
@@ -266,6 +233,38 @@ impl WsClientSession {
                 self.call_procedure(ctx, auth, function, params, data);
             },
         }
+    }
+}
+
+
+impl Actor for WsClientSession {
+    type Context = ws::WebsocketContext<Self, AppState>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        info!("WsSession[{:?}] opened ", &self.id);
+    }
+
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        info!("WsSession[{:?}] closed ", &self.id);
+    }
+}
+
+
+impl Handler<Notification> for WsClientSession {
+    type Result = ();
+
+    fn handle(&mut self, notification: Notification, ctx: &mut Self::Context) {
+        let data = notification.get_data();
+        let _ = serde_json::to_string(&data)
+            .and_then(|res| {
+                ctx.text(res);
+                Ok(())
+            })
+            .or_else(|err| {
+                error!("Could not parse message for notifications: {:?}", &err);
+                Err(err)
+            });
+
     }
 }
 
