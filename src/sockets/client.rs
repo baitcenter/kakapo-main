@@ -29,8 +29,6 @@ use actix_web::Responder;
 use futures::Future;
 use actix_web::client;
 
-use state::api::Api;
-use state::api::GetEndpoint;
 use actix_web::Json;
 
 use actix_broker::BrokerIssue;
@@ -53,6 +51,8 @@ use jsonwebtoken as jwt;
 use state::error::Error::TooManyConnections;
 use sockets::Notification;
 use state::JwtConfig;
+
+use state::GetEndpoint;
 
 #[derive(Clone, Debug)]
 pub struct WsClientSession {
@@ -225,7 +225,7 @@ impl WsClientSession {
                 Err("Could not parse token data".to_string())
             })?;
 
-        let endpoint = Api::get_endpoint();
+        let endpoint = ctx.state().get_endpoint();
         let function_endpoint = format!("{}/{}", endpoint, function);
         debug!("calling endpoint: {:?}", &function_endpoint);
 

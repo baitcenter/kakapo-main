@@ -28,9 +28,11 @@ extern crate openssl;
 extern crate tokio_core;
 extern crate uuid;
 
+#[cfg(test)]
+extern crate mockito;
+
 /// Mods
 mod server;
-mod services;
 mod sockets;
 mod state;
 

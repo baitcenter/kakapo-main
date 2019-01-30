@@ -30,8 +30,6 @@ use actix_web::Responder;
 use futures::Future;
 use actix_web::client;
 
-use server::api::Api;
-use server::api::GetEndpoint;
 use actix_web::Json;
 
 use std::str::from_utf8;
@@ -43,6 +41,8 @@ use chrono::Utc;
 
 use jsonwebtoken as jwt;
 use server::error::Error as ServerError;
+
+use state::GetEndpoint;
 
 type AsyncResponse = FutureResponse<HttpResponse>;
 
@@ -171,7 +171,9 @@ fn generate_tokens_from_action_result<S>(state: &S, api_result: ApiOkResponse) -
     }
 }
 
-fn generate_tokens_from_auth_result<S>(state: &AppState, raw_bytes: &[u8]) -> HttpResponse {
+fn generate_tokens_from_auth_result<S>(state: &S, raw_bytes: &[u8]) -> HttpResponse
+    where S: JwtConfig,
+{
 
     ApiResult::parse_result(raw_bytes)
         .and_then(|api_result| match api_result {
@@ -206,8 +208,10 @@ fn return_server_response(raw_bytes: &[u8]) -> HttpResponse {
         )
 }
 
-pub fn login((req, auth_data): (HttpRequest<AppState>, Json<AuthData>)) -> AsyncResponse {
-    let endpoint = Api::get_endpoint();
+pub fn login<S>((req, auth_data): (HttpRequest<S>, Json<AuthData>)) -> AsyncResponse
+    where S: JwtConfig + GetEndpoint + 'static,
+{
+    let endpoint = req.state().get_endpoint();
     let login_endpoint = format!("{}/users/authenticate", endpoint);
 
     client::ClientRequest::post(login_endpoint)
@@ -218,13 +222,15 @@ pub fn login((req, auth_data): (HttpRequest<AppState>, Json<AuthData>)) -> Async
         .and_then(|resp| resp
             .body()
             .from_err()
-            .and_then(move |body| Ok(generate_tokens_from_auth_result::<AppState>(req.state(), &body)))
+            .and_then(move |body| Ok(generate_tokens_from_auth_result::<S>(req.state(), &body)))
         )
         .responder()
 }
 
-pub fn refresh((req, auth_data): (HttpRequest<AppState>, Json<RefreshData>)) -> AsyncResponse {
-    let endpoint = Api::get_endpoint();
+pub fn refresh<S>((req, auth_data): (HttpRequest<S>, Json<RefreshData>)) -> AsyncResponse
+    where S: JwtConfig + GetEndpoint + 'static,
+{
+    let endpoint = req.state().get_endpoint();
     let login_endpoint = format!("{}/users/authenticate", endpoint);
 
     client::ClientRequest::post(login_endpoint)
@@ -235,13 +241,15 @@ pub fn refresh((req, auth_data): (HttpRequest<AppState>, Json<RefreshData>)) -> 
         .and_then(|resp| resp
             .body()
             .from_err()
-            .and_then(move |body| Ok(generate_tokens_from_auth_result::<AppState>(req.state(), &body)))
+            .and_then(move |body| Ok(generate_tokens_from_auth_result::<S>(req.state(), &body)))
         )
         .responder()
 }
 
-pub fn logout((req, auth_data): (HttpRequest<AppState>, Json<RefreshData>)) -> AsyncResponse {
-    let endpoint = Api::get_endpoint();
+pub fn logout<S>((req, auth_data): (HttpRequest<S>, Json<RefreshData>)) -> AsyncResponse
+    where S: JwtConfig + GetEndpoint + 'static,
+{
+    let endpoint = req.state().get_endpoint();
     let logout_endpoint = format!("{}/users/remove_authentication", endpoint);
 
     client::ClientRequest::post(logout_endpoint)
@@ -268,6 +276,8 @@ mod tests {
     use actix_web::test::TestApp;
     use actix_web::dev::Resource;
     use actix_web::test::TestServerBuilder;
+    use actix_web::http::Method;
+    use mockito::{mock, Matcher};
 
 
     struct TestState;
@@ -282,6 +292,28 @@ mod tests {
 
         fn get_secret_key(&self) -> String {
             "hunter2".to_string()
+        }
+    }
+
+    struct TestStateWithEndpoint(String);
+
+    impl JwtConfig for TestStateWithEndpoint {
+        fn get_jwt_issuer(&self) -> String {
+            "http://www.example.com/".to_string()
+        }
+
+        fn get_jwt_duration(&self) -> i64 {
+            15 * 60 // 15 minutes
+        }
+
+        fn get_secret_key(&self) -> String {
+            "hunter2".to_string()
+        }
+    }
+
+    impl GetEndpoint for TestStateWithEndpoint {
+        fn get_endpoint(&self) -> String {
+            self.0.to_owned()
         }
     }
 
@@ -416,6 +448,67 @@ mod tests {
         assert_eq!(response.status(), http::StatusCode::UNAUTHORIZED);
     }
 
+    #[test]
+    fn test_login_endpoint() {
 
+        let tomorrow_date = (Utc::now() + Duration::days(1))
+            .naive_utc().format("%Y-%m-%dT%H:%M:%S").to_string();
+        let server_output = json!({
+            "action": "AuthResult",
+            "data": {
+                "username": "chunkylover53",
+                "isAdmin": true,
+                "roles": ["7G", "inspector"],
+                "sessionToken": "my_session_token",
+                "sessionTokenExp": tomorrow_date,
+            },
+        });
+
+        let m = mock("POST", "/users/authenticate")
+            .match_body(Matcher::Json(json!({
+                "username": "chunkylover53",
+                "password": "hunter2"
+            })))
+            .match_header("content-type", "application/json")
+            .with_body(&serde_json::to_string(&server_output).unwrap())
+            .create();
+        let endpoint = mockito::server_url();
+
+        let server_builder: TestServerBuilder<TestStateWithEndpoint, _> =
+            TestServer::build_with_state(move || TestStateWithEndpoint(endpoint.to_owned()));
+
+        let mut srv = server_builder
+            .start(|app| {
+                app.resource("/login", |r| r.method(Method::POST).with(login::<TestStateWithEndpoint>));
+            });
+
+        let json_request = json!({
+            "username": "chunkylover53",
+            "password": "hunter2"
+        });
+
+        let request = srv
+            .client(Method::POST, "/login")
+            .json(json_request)
+            .unwrap();
+        let response = srv.execute(request.send()).unwrap();
+        assert!(response.status().is_success());
+
+        let bytes = srv.execute(response.body()).unwrap();
+        let body = str::from_utf8(&bytes).unwrap();
+
+        let token: HashMap<String, serde_json::Value> = serde_json::from_str(body).unwrap();
+        let access_token: String = serde_json::from_value(token.get("access_token").unwrap().to_owned()).unwrap();
+        let claims: Claims = jwt::decode(&access_token, "hunter2".as_ref(), &jwt::Validation::default()).unwrap().claims;
+
+
+        assert_eq!(token.get("token_type").unwrap().to_owned(), json!("bearer"));
+        assert_eq!(token.get("expires_in").unwrap().to_owned(), json!(15 * 60));
+        assert_eq!(token.get("refresh_token").unwrap().to_owned(), json!("my_session_token"));
+
+        assert_eq!(claims.sub, "chunkylover53".to_string());
+        assert_eq!(claims.is_admin, true);
+        assert_eq!(claims.roles, vec!["7G", "inspector"]);
+    }
 
 }

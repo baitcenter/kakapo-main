@@ -34,8 +34,6 @@ use actix_web::Responder;
 use futures::Future;
 use actix_web::client;
 
-use server::api::Api;
-use server::api::GetEndpoint;
 use actix_web::Json;
 
 use sockets;
@@ -94,9 +92,9 @@ pub fn serve() {
                 .allowed_header(http::header::CONTENT_TYPE)
                 .max_age(3600)
                 .resource("/listen", |r| r.f(sockets::handler))
-                .resource("/login", |r| r.method(Method::POST).with(auth_routes::login))
-                .resource("/refresh", |r| r.method(Method::POST).with(auth_routes::refresh))
-                .resource("/logout", |r| r.method(Method::POST).with(auth_routes::logout))
+                .resource("/login", |r| r.method(Method::POST).with(auth_routes::login::<AppState>))
+                .resource("/refresh", |r| r.method(Method::POST).with(auth_routes::refresh::<AppState>))
+                .resource("/logout", |r| r.method(Method::POST).with(auth_routes::logout::<AppState>))
                 .resource("/manage/{param}", |r| r.f(call_internal_api))
                 .register())
             .resource("/", |r| {

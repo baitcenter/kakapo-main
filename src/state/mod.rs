@@ -23,6 +23,16 @@ impl AppState {
     }
 }
 
+pub trait GetEndpoint {
+    fn get_endpoint(&self) -> String;
+}
+
+impl GetEndpoint for AppState {
+    fn get_endpoint(&self) -> String {
+        "https://866bc5bf-bee9-4ce6-b138-58c356e1cd00.mock.pstmn.io".to_string()
+    }
+}
+
 pub trait JwtConfig {
     fn get_jwt_issuer(&self) -> String;
 

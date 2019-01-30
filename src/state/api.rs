@@ -97,15 +97,3 @@ impl ApiResult {
             })
     }
 }
-
-pub struct Api;
-
-pub trait GetEndpoint {
-    fn get_endpoint() -> String;
-}
-
-impl GetEndpoint for Api {
-    fn get_endpoint() -> String {
-        "https://866bc5bf-bee9-4ce6-b138-58c356e1cd00.mock.pstmn.io".to_string()
-    }
-}
