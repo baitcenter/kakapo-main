@@ -2,7 +2,7 @@
 name = "kakapo"
 version = "0.1.0"
 authors = ["Atta Zadeh <atta.h.zadeh@gmail.com>"]
-path = "src/server/main.rs"
+path = "src/main.rs"
 
 [dependencies]
 actix = "0.7.7"
@@ -32,8 +32,7 @@ tokio-io = "0.1"
 tokio-core = "0.1"
 uuid = { version = "0.7", features = ["serde", "v4"] }
 
-#for tests
-mockito = "0.15.0"
+kakapo_api = { path = "/home/atta/kakapo-project/kakapo-server" }
 
 [profile.dev]
 opt-level = 0

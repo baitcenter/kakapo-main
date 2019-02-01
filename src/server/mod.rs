@@ -39,6 +39,47 @@ use actix_web::Json;
 use sockets;
 use state::api;
 
+use kakapo_api::KakapoRouter;
+use kakapo_api::GetKakapoState;
+use kakapo_api::KakapoState;
+use kakapo_api::KakapoAuth;
+use kakapo_api::KakapoBroadcaster;
+
+
+struct Auth;
+struct Broadcaster;
+
+impl GetKakapoState<Auth, Broadcaster> for AppState {
+    fn get_app_state(&self) -> &KakapoState {
+        unimplemented!()
+    }
+
+    fn get_auth(&self) -> Auth {
+        unimplemented!()
+    }
+
+    fn get_broadcaster(&self) -> Broadcaster {
+        unimplemented!()
+    }
+}
+
+impl KakapoAuth for Auth {
+    fn create_token(&self) -> i32 {
+        unimplemented!()
+    }
+
+    fn validate_token(&self) -> bool {
+        unimplemented!()
+    }
+}
+
+
+impl KakapoBroadcaster for Broadcaster {
+    fn publish(&self, channels: Vec<String>) {
+        unimplemented!()
+    }
+}
+
 //static routes
 fn index(_state: State<AppState>) -> Result<NamedFile, Error> {
     let www_path = Env::www_path();
@@ -91,11 +132,13 @@ pub fn serve() {
                 .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
                 .allowed_header(http::header::CONTENT_TYPE)
                 .max_age(3600)
+                .kakapo_routes()
                 .resource("/listen", |r| r.f(sockets::handler))
-                .resource("/login", |r| r.method(Method::POST).with(auth_routes::login::<AppState>))
+                /*.resource("/login", |r| r.method(Method::POST).with(auth_routes::login::<AppState>))
                 .resource("/refresh", |r| r.method(Method::POST).with(auth_routes::refresh::<AppState>))
                 .resource("/logout", |r| r.method(Method::POST).with(auth_routes::logout::<AppState>))
                 .resource("/manage/{param}", |r| r.f(call_internal_api))
+                */
                 .register())
             .resource("/", |r| {
                 r.method(http::Method::GET).with(index)
