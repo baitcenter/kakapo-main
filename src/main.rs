@@ -1,47 +1,25 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
 /// Crates
-extern crate actix;
-extern crate actix_broker;
-extern crate actix_web;
-extern crate bcrypt;
-extern crate bytes;
-extern crate chrono;
+extern crate ansi_term;
 extern crate clap;
-extern crate dotenv;
 extern crate env_logger;
 #[macro_use]
-extern crate failure;
-extern crate futures;
-#[macro_use]
-extern crate json;
-extern crate jsonwebtoken;
-#[macro_use]
 extern crate log;
-extern crate num_cpus;
-extern crate serde;
-#[macro_use]
-extern crate serde_json;
-#[macro_use]
-extern crate serde_derive;
-extern crate openssl;
-extern crate tokio_core;
-extern crate uuid;
+extern crate rpassword;
 
 extern crate kakapo_api;
 
-/// Mods
-mod server;
-mod sockets;
-mod state;
+mod configure;
 
 /// Extenal dependencies
 use log::LevelFilter;
 use env_logger::{Builder, Target};
 use clap::{Arg, App};
 
-/// Internal dependencies
+use configure::Reason;
 
+/// Internal dependencies
 fn main() {
 
     let matches = App::new("Kakapo")
@@ -60,19 +38,21 @@ fn main() {
             .help("Do not authenticate user, [WARNING: don't use this in production]"))
         .get_matches();
 
-    //std::env::set_var("RUST_LOG", "warn,actix_web=info,kakapo=all");
-    //std::env::set_var("RUST_BACKTRACE","1");
-    Builder::new()
-        .target(Target::Stdout)
-        .filter_level(LevelFilter::Warn)
-        .filter_module("kakapo", LevelFilter::Debug)
-        .filter_module("actix_web", LevelFilter::Info)
-        .init();
+    let do_configure = true;
+    let reason = Reason::ConfigureAll;
 
-    let sys = actix::System::new("KakapoArbiter");
+    if do_configure {
+        configure::start(reason);
+    } else {
+        //std::env::set_var("RUST_LOG", "warn,actix_web=info,kakapo=all");
+        //std::env::set_var("RUST_BACKTRACE","1");
+        Builder::new()
+            .target(Target::Stdout)
+            .filter_level(LevelFilter::Warn)
+            .filter_module("kakapo", LevelFilter::Debug)
+            .filter_module("actix_web", LevelFilter::Info)
+            .init();
 
-    server::serve();
-
-    // loop
-    sys.run();
+        kakapo_api::run();
+    }
 }
