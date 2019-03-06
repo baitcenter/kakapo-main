@@ -7,42 +7,76 @@ extern crate env_logger;
 #[macro_use]
 extern crate log;
 extern crate rpassword;
+extern crate console;
+extern crate dialoguer;
+extern crate inflector;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
+extern crate serde_yaml;
 
 extern crate kakapo_api;
 
-mod configure;
+mod wizard;
+mod config;
 
-/// Extenal dependencies
+use std::path::PathBuf;
+
 use log::LevelFilter;
 use env_logger::{Builder, Target};
-use clap::{Arg, App};
+use clap::{Arg, App, SubCommand};
 
-use configure::Reason;
+use wizard::Reason;
 
-/// Internal dependencies
+
 fn main() {
-
     let matches = App::new("Kakapo")
         .version("0.1.0")
         .author("Atta Z. <atta.h.zadeh@gmail.com>")
         .about("Database utility and Crud app creator")
-        .arg(Arg::with_name("Verbosity")
+        .arg(Arg::with_name("config")
+            .short("c")
+            .long("config")
+            .takes_value(true)
+            .help("path to config file"))
+        .arg(Arg::with_name("verbosity")
             .short("v")
             .long("verbose")
             .help("Sets the level of verbosity"))
-        .arg(Arg::with_name("Reconfigure")
-            .long("reconfigure")
-            .help("Set up the initial configuration again"))
-        .arg(Arg::with_name("No Auth")
-            .long("no-auth")
-            .help("Do not authenticate user, [WARNING: don't use this in production]"))
+        .subcommand(SubCommand::with_name("configure")
+            .about("Kakapo configuration wizard")
+            .version("0.1.0")
+            .author("Atta Z. <atta.h.zadeh@gmail.com>")
+            .arg(Arg::with_name("step")
+                .long("step")
+                .short("s")
+                .value_name("STEP")
+                .required_unless("all")
+                .conflicts_with("all")
+                .takes_value(true)
+                .possible_values(&wizard::get_possible_values())
+                .help("Reconfigure step"))
+            .arg(Arg::with_name("all")
+                .long("all")
+                .short("a")
+                .help("Reconfigure everything")))
         .get_matches();
 
+    let config_file = match matches.value_of("config") {
+        Some(config) => Ok(PathBuf::from(config)),
+        None => config::get_config_path(),
+    };
+
+    println!("config file: {:?}", &config_file);
+    return;
+
+
     let do_configure = true;
-    let reason = Reason::ConfigureAll;
+    let reason = Reason::NoConfigFile;
 
     if do_configure {
-        configure::start(reason);
+        wizard::start(reason);
     } else {
         //std::env::set_var("RUST_LOG", "warn,actix_web=info,kakapo=all");
         //std::env::set_var("RUST_BACKTRACE","1");
