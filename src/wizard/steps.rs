@@ -6,6 +6,9 @@ use std::io;
 use console::Style;
 use dialoguer::{theme::ColorfulTheme, Confirmation, Input, PasswordInput, Select};
 
+use wizard::ConfigData;
+use wizard::Manager;
+
 pub fn get_theme() -> ColorfulTheme {
     ColorfulTheme {
         defaults_style: Style::new().dim(),
@@ -19,12 +22,19 @@ pub fn get_theme() -> ColorfulTheme {
     }
 }
 
-pub fn create_central_database() -> Result<(), Box<Error>> {
-    //if already_created {
-    //    //continue prompt
-    //}
-
+pub fn create_central_database(data: ConfigData, check_if_exists: bool) -> Result<ConfigData, Box<Error>> {
     let theme = get_theme();
+
+    if check_if_exists && data.manager.is_some() {
+        let continue_step = Confirmation::with_theme(&theme)
+            .with_text("Continue?")
+            .interact()
+            .unwrap_or(false);
+
+        if !continue_step {
+            return Ok(data)
+        }
+    }
 
     let use_postgres = Confirmation::with_theme(&theme)
         .with_text("Choose default database. Currently the only option is postgres. Do you want to continue?")
@@ -59,11 +69,24 @@ pub fn create_central_database() -> Result<(), Box<Error>> {
 
     println!("postgres://{}:{}@{}:{}/{}", user, pass, host, port, database);
     //TODO: test connection
-    Ok(())
+
+    let mut new_data = data.to_owned();
+    let manager = Manager {
+        db_type: "postgres".to_string(),
+        host, port,
+        user, pass,
+        database
+    };
+
+    new_data.manager = Some(manager);
+
+    Ok(new_data)
 }
 
-pub fn setup_admin_account() -> Result<(), Box<Error>> {
+pub fn setup_admin_account(data: ConfigData, check_if_exists: bool) -> Result<ConfigData, Box<Error>> {
     let theme = get_theme();
+
+    //TODO: check if user exists db::get_admin_user()
 
     let user: String = Input::with_theme(&theme)
         .with_prompt("Admin username?")
@@ -83,11 +106,24 @@ pub fn setup_admin_account() -> Result<(), Box<Error>> {
         .default(user.to_owned())
         .interact()?;
 
-    Ok(())
+    //TODO: build config data
+    Ok(data)
 }
 
-pub fn setup_server() -> Result<(), Box<Error>> {
+pub fn setup_server(data: ConfigData, check_if_exists: bool) -> Result<ConfigData, Box<Error>> {
     let theme = get_theme();
+    /*
+    if check_if_exists && data.server.is_some() {
+        let continue_step = Confirmation::with_theme(&theme)
+            .with_text("Continue?")
+            .interact()
+            .unwrap_or(false);
+
+        if !continue_step {
+            return Ok(data)
+        }
+    }
+    */
 
     let server_name: String = Input::with_theme(&theme)
         .with_prompt("What is your server host (e.g. www.kakapo.io)")
@@ -106,11 +142,13 @@ pub fn setup_server() -> Result<(), Box<Error>> {
         .item("no")
         .interact()?;
 
-    Ok(())
+    //TODO: set up tls if true
+
+    Ok(data)
 }
 
 //TODO: linux only
-pub fn create_kakapo_user() -> Result<(), Box<Error>> {
+pub fn create_kakapo_user(data: ConfigData, check_if_exists: bool) -> Result<ConfigData, Box<Error>> {
     let theme = get_theme();
 
     let create_user = Confirmation::with_theme(&theme)
@@ -118,14 +156,14 @@ pub fn create_kakapo_user() -> Result<(), Box<Error>> {
         .interact()?;
 
     if !create_user {
-        return Ok(());
+        return Ok(data);
     }
 
-    Ok(())
+    Ok(data)
 }
 
 //TODO: linux only
-pub fn setup_daemon() -> Result<(), Box<Error>> {
+pub fn setup_daemon(data: ConfigData, check_if_exists: bool) -> Result<ConfigData, Box<Error>> {
     let theme = get_theme();
 
     let setup_systemd = Confirmation::with_theme(&theme)
@@ -133,7 +171,7 @@ pub fn setup_daemon() -> Result<(), Box<Error>> {
         .interact()?;
 
     if !setup_systemd {
-        return Ok(());
+        return Ok(data);
     }
 
 
@@ -145,9 +183,9 @@ pub fn setup_daemon() -> Result<(), Box<Error>> {
         .item("sudo")
         .interact()?;
 
-    Ok(())
+    Ok(data)
 }
 
-pub fn manage_domains() -> Result<(), Box<Error>> {
-    Ok(())
+pub fn manage_domains(data: ConfigData, check_if_exists: bool) -> Result<ConfigData, Box<Error>> {
+    Ok(data)
 }

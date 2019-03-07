@@ -12,8 +12,10 @@ extern crate dialoguer;
 extern crate inflector;
 extern crate serde;
 #[macro_use]
-extern crate serde_derive;
 extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
 extern crate serde_yaml;
 
 extern crate kakapo_api;
@@ -22,7 +24,9 @@ mod wizard;
 mod config;
 
 use std::path::PathBuf;
+use std::fs;
 
+use ansi_term::Color::Red;
 use log::LevelFilter;
 use env_logger::{Builder, Target};
 use clap::{Arg, App, SubCommand};
@@ -68,15 +72,32 @@ fn main() {
         None => config::get_config_path(),
     };
 
-    println!("config file: {:?}", &config_file);
-    return;
+    let config_file = match config_file {
+        Ok(x) => x,
+        Err(err) => {
+            println!("{}", Red.bold().paint(err));
+            return;
+        },
+    };
 
+    let configuration_reason = if let Some(configure_matches) = matches.subcommand_matches("configure") {
+        if !config_file.exists() {
+            Some(Reason::InitialConfigure)
+        } else if let Some(step) = configure_matches.value_of("step") {
+            Some(Reason::Reconfigure(step.to_string(), config_file.to_owned()))
+        } else {
+            Some(Reason::ReconfigureAll(config_file.to_owned()))
+        }
+    } else {
+        if !config_file.exists() {
+            Some(Reason::NoConfigFile)
+        } else {
+            None
+        }
+    };
 
-    let do_configure = true;
-    let reason = Reason::NoConfigFile;
-
-    if do_configure {
-        wizard::start(reason);
+    if let Some(reason) = configuration_reason {
+        wizard::start(reason, config_file);
     } else {
         //std::env::set_var("RUST_LOG", "warn,actix_web=info,kakapo=all");
         //std::env::set_var("RUST_BACKTRACE","1");
