@@ -5,6 +5,8 @@ use std::path::Path;
 use std::env::home_dir;
 use std::env;
 
+pub const CONFIG_YAML: &'static str = "config.yaml";
+
 pub fn get_config_path() -> Result<PathBuf, String> {
     let mut config_path = PathBuf::new();
     match env::var("KAKAPO_HOME") {
@@ -19,6 +21,6 @@ pub fn get_config_path() -> Result<PathBuf, String> {
         },
     }
 
-    config_path.push("config.yaml");
+    config_path.push(CONFIG_YAML);
     Ok(config_path)
 }

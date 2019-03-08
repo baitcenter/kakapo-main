@@ -10,6 +10,7 @@ extern crate rpassword;
 extern crate console;
 extern crate dialoguer;
 extern crate inflector;
+extern crate rand;
 extern crate serde;
 #[macro_use]
 extern crate serde_json;
@@ -35,6 +36,11 @@ use wizard::Reason;
 
 
 fn main() {
+    let reason = Reason::NoConfigFile;
+    let config_file = config::get_config_path().unwrap();
+    wizard::start(reason, config_file);
+    return;
+
     let matches = App::new("Kakapo")
         .version("0.1.0")
         .author("Atta Z. <atta.h.zadeh@gmail.com>")

@@ -2,6 +2,8 @@
 use std::path::PathBuf;
 use std::error::Error;
 use std::fs;
+use std::collections::BTreeMap;
+use std::fmt;
 
 use ansi_term::Style;
 use ansi_term::Color::{Green, Yellow, Red, RGB};
@@ -9,6 +11,7 @@ use inflector::Inflector;
 
 mod steps;
 mod data;
+mod utils;
 
 use self::steps::get_theme;
 use dialoguer::Confirmation;
@@ -31,7 +34,6 @@ impl Default for Version {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct Manager {
     #[serde(rename = "type")]
     pub db_type: String,
@@ -42,31 +44,62 @@ pub struct Manager {
     pub database: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(tag = "type")]
 #[serde(rename_all = "camelCase")]
+pub enum DomainInfo {
+    Postgres {
+        host: String,
+        port: u16,
+        user: String,
+        pass: String,
+        database: String,
+    },
+}
+
+impl fmt::Display for DomainInfo {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DomainInfo::Postgres { user, host, port, database, ..} => {
+                write!(f, "Postgres [postgres://{}:*****@{}:{}/{}]", user, host, port, database)
+            },
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct ConfigData {
+    #[serde(skip)]
+    pub config_path: PathBuf,
     pub version: Version,
     pub manager: Option<Manager>,
+    pub domains: BTreeMap<String, DomainInfo>,
 }
 
 impl ConfigData {
 
-    fn to_file(&self, path: PathBuf) -> Result<(), String> {
+    fn to_file(&self) -> Result<(), String> {
+
         let data = serde_yaml::to_string(self)
             .map_err(|err| err.to_string())?;
 
-        fs::write(path, data)
+        fs::write(self.config_path.to_owned(), data)
             .map_err(|err| err.to_string())
     }
 
     fn from_file(path: PathBuf) -> Result<Self, String> {
-        let config_data_str = fs::read_to_string(path)
+        let config_data_str = fs::read_to_string(path.to_owned())
             .map_err(|err| err.to_string())?;
 
         let data: ConfigData = serde_yaml::from_str(&config_data_str)
             .map_err(|err| err.to_string())?;
 
-        Ok(data)
+        Ok(data.with_path(path))
+    }
+
+    fn with_path(mut self, config_path: PathBuf) -> Self {
+        self.config_path = config_path;
+        self
     }
 }
 
@@ -135,11 +168,11 @@ type StepFunction = Box<Fn(ConfigData, bool) -> Result<ConfigData, Box<Error>>>;
 
 fn all_steps() -> Vec<(&'static str, StepFunction)> {
      vec![
-        ("create central database", Box::new(steps::create_central_database)),
-        ("setup admin account", Box::new(steps::setup_admin_account)),
-        ("setup server", Box::new(steps::setup_server)),
-        ("create kakapo user", Box::new(steps::create_kakapo_user)), //linux only
-        ("setup daemon", Box::new(steps::setup_daemon)), //linux only
+        //("create central database", Box::new(steps::create_central_database)),
+        //("setup admin account", Box::new(steps::setup_admin_account)),
+        //("setup server", Box::new(steps::setup_server)),
+        //("create kakapo user", Box::new(steps::create_kakapo_user)), //TODO: linux only
+        //("setup daemon", Box::new(steps::setup_daemon)), //TODO: linux only
         ("manage domains", Box::new(steps::manage_domains)),
     ]
 }
@@ -197,16 +230,16 @@ pub fn get_possible_values() -> Vec<&'static str> {
         .collect()
 }
 
-pub fn start_internal(reason: Reason) -> Result<ConfigData, String> {
+pub fn start_internal(reason: Reason, config_path: PathBuf) -> Result<ConfigData, String> {
     match reason {
         Reason::NoConfigFile => {
-            let config_data = ConfigData::default();
+            let config_data = ConfigData::default().with_path(config_path);
             print_welcome();
             println!("{}", Red.paint("    No Config file found, Starting the Configuration wizard"));
             start_configure_all(ConfigureWhat::Everything, config_data)
         },
         Reason::InitialConfigure => {
-            let config_data = ConfigData::default();
+            let config_data = ConfigData::default().with_path(config_path);
             print_welcome();
             start_configure_all(ConfigureWhat::Everything, config_data)
         },
@@ -222,10 +255,11 @@ pub fn start_internal(reason: Reason) -> Result<ConfigData, String> {
     }
 }
 
-pub fn start(reason: Reason, out_file: PathBuf) {
-    match start_internal(reason) {
+pub fn start(reason: Reason, config_path: PathBuf) {
+    match start_internal(reason, config_path) {
         Ok(data) => {
-            data.to_file(out_file);
+            let result = data.to_file();
+            println!("result of printing to file: {:?}", &result);
         },
         Err(err) => {
             println!("{}", Red.bold().paint(err));
