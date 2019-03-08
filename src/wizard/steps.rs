@@ -139,7 +139,7 @@ pub fn setup_server(data: ConfigData, check_if_exists: bool) -> Result<ConfigDat
     */
 
     let server_name: String = Input::with_theme(&theme)
-        .with_prompt("What is your server host (e.g. www.kakapo.io)")
+        .with_prompt("What is your server host (e.g. www.kakapo.ai)")
         .interact()?;
 
     let default_port: u16 = Input::with_theme(&theme)

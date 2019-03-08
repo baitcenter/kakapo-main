@@ -156,7 +156,7 @@ fn print_welcome() {
     "#,
     logo=output,
     title=Style::new().bold().paint("WELCOME TO KAKAPO CONFIGURATION WIZARD"),
-    documentation=Green.paint("More information about this tool is available at https://kakapo.io"));
+    documentation=Green.paint("More information about this tool is available at https://kakapo.ai"));
 }
 
 enum ConfigureWhat {
