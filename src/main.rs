@@ -25,6 +25,7 @@ mod wizard;
 mod config;
 
 use std::path::PathBuf;
+use std::path::Path;
 use std::fs;
 
 use ansi_term::Color::Red;
@@ -36,11 +37,6 @@ use wizard::Reason;
 
 
 fn main() {
-    let reason = Reason::NoConfigFile;
-    let config_file = config::get_config_path().unwrap();
-    wizard::start(reason, config_file);
-    return;
-
     let matches = App::new("Kakapo")
         .version("0.1.0")
         .author("Atta Z. <atta.h.zadeh@gmail.com>")
@@ -107,6 +103,7 @@ fn main() {
     } else {
         //std::env::set_var("RUST_LOG", "warn,actix_web=info,kakapo=all");
         //std::env::set_var("RUST_BACKTRACE","1");
+
         Builder::new()
             .target(Target::Stdout)
             .filter_level(LevelFilter::Warn)
@@ -114,6 +111,27 @@ fn main() {
             .filter_module("actix_web", LevelFilter::Info)
             .init();
 
-        kakapo_api::run();
+        let plugin = kakapo_api::kakapo_postgres::KakapoPostgres::new()
+            .host("localhost")
+            .port(5432)
+            .user("test")
+            .pass("password")
+            .db("test");
+
+        let state = kakapo_api::AppStateBuilder::new()
+            .host("localhost")
+            .port(5432)
+            .user("test")
+            .pass("password")
+            .num_threads(1)
+            .password_secret("Hello World Hello Wold")
+            .token_secret("Hello World Hello Wold")
+            .add_plugin("Sirocco", plugin);
+
+        kakapo_api::Server::new()
+            .host("127.0.0.1")
+            .port(1845)
+            .frontend_path(Path::new("/home/atta/kakapo-project/kakapo-client/www"))
+            .run(state);
     }
 }

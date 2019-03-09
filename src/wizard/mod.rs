@@ -168,11 +168,11 @@ type StepFunction = Box<Fn(ConfigData, bool) -> Result<ConfigData, Box<Error>>>;
 
 fn all_steps() -> Vec<(&'static str, StepFunction)> {
      vec![
-        //("create central database", Box::new(steps::create_central_database)),
-        //("setup admin account", Box::new(steps::setup_admin_account)),
-        //("setup server", Box::new(steps::setup_server)),
-        //("create kakapo user", Box::new(steps::create_kakapo_user)), //TODO: linux only
-        //("setup daemon", Box::new(steps::setup_daemon)), //TODO: linux only
+        ("create central database", Box::new(steps::create_central_database)),
+        ("setup admin account", Box::new(steps::setup_admin_account)),
+        ("setup server", Box::new(steps::setup_server)),
+        ("create kakapo user", Box::new(steps::create_kakapo_user)), //TODO: linux only
+        ("setup daemon", Box::new(steps::setup_daemon)), //TODO: linux only
         ("manage domains", Box::new(steps::manage_domains)),
     ]
 }
