@@ -111,12 +111,16 @@ fn main() {
             .filter_module("actix_web", LevelFilter::Info)
             .init();
 
-        let plugin = kakapo_api::kakapo_postgres::KakapoPostgres::new()
+        let pg_plugin = kakapo_api::kakapo_postgres::KakapoPostgres::new()
             .host("localhost")
             .port(5432)
             .user("test")
             .pass("password")
             .db("test");
+
+        let redis_plugin = kakapo_api::kakapo_redis::KakapoRedis::new()
+            .host("localhost")
+            .port(6379);
 
         let state = kakapo_api::AppStateBuilder::new()
             .host("localhost")
@@ -126,7 +130,8 @@ fn main() {
             .num_threads(1)
             .password_secret("Hello World Hello Wold")
             .token_secret("Hello World Hello Wold")
-            .add_plugin("Sirocco", plugin);
+            .add_plugin("Sirocco", pg_plugin)
+            .add_plugin("Lisa", redis_plugin);
 
         kakapo_api::Server::new()
             .host("127.0.0.1")
